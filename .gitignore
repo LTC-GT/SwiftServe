@@ -58,5 +58,7 @@ dist/
 releases/
 *.tar.gz
 *.zip
-SwiftServe
-swiftserve
+/SwiftServe
+/swiftserve
+.build/release/SwiftServe
+.build/debug/SwiftServe
