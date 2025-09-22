@@ -2,7 +2,7 @@
 
 **⚠️ ALPHA VERSION 0.1 - Early Development Release ⚠️**
 
-A simple, fast HTTP/HTTPS server written in Swift that mimics basic Caddy functionality.
+A simple, fast HTTP/HTTPS server written in Swift - designed to mimic functionality provided in Caddy using only Apple's frameworks from the `Foundation` and `Network` libraries.
 
 ## Architecture Overview
 
@@ -105,7 +105,7 @@ localhost:8443 {
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/LTC-GT/SwiftServe.git
 cd SwiftServe
 
 # Build the executable
@@ -200,17 +200,16 @@ SwiftServe/
 │   ├── Logger.swift        # Logging utilities
 │   └── CaddyConfig.swift   # Configuration file parser
 ├── serve/                  # Default web root directory
-│   ├── index.html         # Demo page
-│   └── favicon.ico
-├── Package.swift          # Swift Package Manager configuration
-├── Caddyfile             # Example configuration
-└── LICENSE               # LGPLv3 License
+│   └── index.html          # Demo page
+├── Package.swift           # Swift Package Manager configuration
+├── Caddyfile               # Example configuration
+└── LICENSE                 # LGPLv3 License
 ```
 
 ### Requirements
 
-- macOS 13.0 or later
-- Swift 5.9 or later
+- Works on any OS supporting Swift (Built on macOS 26 Tahoe)
+- Swift (and compiler) version 5.9 or later
 
 ### Building for Development
 
@@ -225,7 +224,7 @@ swift build
 
 ### Creating SSL Certificates
 
-For HTTPS, SwiftServe automatically generates self-signed certificates. For production use, replace with proper certificates.
+For HTTPS, SwiftServe automatically generates self-signed certificates for localhost. In production use, replace with proper certificates generated with SwiftServe via the `--https` flag.
 
 ## License
 
@@ -234,8 +233,8 @@ This project is licensed under the GNU Lesser General Public License v3.0 - see 
 ## Acknowledgments
 
 Made with ❤️ in Atlanta, Georgia  
-Project created at the LibreTech Collective at [Georgia Institute of Technology](https://gatech.edu)
+Project created at the [LibreTech Collective](https://sites.gatech.edu/gtltc/) at [Georgia Institute of Technology](https://gatech.edu)
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are always welcome! Please feel free to submit a Pull Request and we'll review it as soon as possible. Thanks for making SwiftServe better!
