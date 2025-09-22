@@ -21,9 +21,9 @@ jobs:
     - name: Install Swift (Ubuntu)
       if: matrix.os == 'ubuntu-22.04'
       run: |
-        # Install dependencies
+        # Install dependencies including OpenSSL for TLS certificate generation
         sudo apt-get update
-        sudo apt-get install -y curl
+        sudo apt-get install -y curl openssl
         
         # Download and install Swift
         if [[ "${{ matrix.swift-version }}" == "5.9" ]]; then
@@ -48,6 +48,14 @@ jobs:
       run: |
         swift --version
         swiftc --version
+        
+    - name: Verify OpenSSL Installation (Ubuntu)
+      if: matrix.os == 'ubuntu-22.04'
+      run: |
+        echo "Checking OpenSSL availability..."
+        which openssl || (echo "OpenSSL not found in PATH" && exit 1)
+        openssl version || (echo "OpenSSL version command failed" && exit 1)
+        echo "OpenSSL is properly installed and functional"
         
     - name: Run Tests
       run: swift test -v

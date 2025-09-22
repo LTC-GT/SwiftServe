@@ -25,6 +25,13 @@ public class TLSManager {
             return
         }
         
+        // Check if OpenSSL is available
+        guard isOpenSSLAvailable() else {
+            logger.logWarning("OpenSSL not available - skipping certificate generation")
+            logger.logInfo("TLS will be disabled, falling back to HTTP only")
+            throw TLSError.opensslNotAvailable
+        }
+        
         logger.logInfo("Generating Let's Encrypt-style self-signed certificate for localhost...")
         logger.logInfo("Using email: \(email)")
         
@@ -69,9 +76,29 @@ public class TLSManager {
         let task = Process()
         task.launchPath = "/bin/sh"
         task.arguments = ["-c", command]
+        
+        // Redirect stderr to avoid cluttering output
+        let pipe = Pipe()
+        task.standardError = pipe
+        task.standardOutput = pipe
+        
         task.launch()
         task.waitUntilExit()
         return task.terminationStatus
+    }
+    
+    private func isOpenSSLAvailable() -> Bool {
+        // Check if openssl binary is available
+        let checkCommand = "which openssl > /dev/null 2>&1"
+        let result = shell(checkCommand)
+        
+        // Also try to execute a simple version command to verify it works
+        if result == 0 {
+            let versionCommand = "openssl version > /dev/null 2>&1"
+            return shell(versionCommand) == 0
+        }
+        
+        return false
     }
 }
 

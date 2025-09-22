@@ -26,38 +26,50 @@ final class TLSTests: XCTestCase {
     }
     
     func testCertificateGeneration() throws {
-        // Generate certificates
-        try tlsManager.generateSelfSignedCertificate()
-        
-        // Verify files exist
-        XCTAssertTrue(FileManager.default.fileExists(atPath: "localhost.crt"))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: "localhost.key"))
-        
-        // Verify file contents are not empty
-        let certData = try Data(contentsOf: URL(fileURLWithPath: "localhost.crt"))
-        let keyData = try Data(contentsOf: URL(fileURLWithPath: "localhost.key"))
-        
-        XCTAssertGreaterThan(certData.count, 0)
-        XCTAssertGreaterThan(keyData.count, 0)
-        
-        // Verify certificate contains expected fields
-        let certString = String(data: certData, encoding: .utf8) ?? ""
-        XCTAssertTrue(certString.contains("BEGIN CERTIFICATE"))
-        XCTAssertTrue(certString.contains("END CERTIFICATE"))
-        
-        // Verify key contains expected fields
-        let keyString = String(data: keyData, encoding: .utf8) ?? ""
-        XCTAssertTrue(keyString.contains("BEGIN RSA PRIVATE KEY") || keyString.contains("BEGIN PRIVATE KEY"))
-        XCTAssertTrue(keyString.contains("END RSA PRIVATE KEY") || keyString.contains("END PRIVATE KEY"))
+        do {
+            // Generate certificates
+            try tlsManager.generateSelfSignedCertificate()
+            
+            // Verify files exist
+            XCTAssertTrue(FileManager.default.fileExists(atPath: "localhost.crt"))
+            XCTAssertTrue(FileManager.default.fileExists(atPath: "localhost.key"))
+            
+            // Verify file contents are not empty
+            let certData = try Data(contentsOf: URL(fileURLWithPath: "localhost.crt"))
+            let keyData = try Data(contentsOf: URL(fileURLWithPath: "localhost.key"))
+            
+            XCTAssertGreaterThan(certData.count, 0)
+            XCTAssertGreaterThan(keyData.count, 0)
+            
+            // Verify certificate contains expected fields
+            let certString = String(data: certData, encoding: .utf8) ?? ""
+            XCTAssertTrue(certString.contains("BEGIN CERTIFICATE"))
+            XCTAssertTrue(certString.contains("END CERTIFICATE"))
+            
+            // Verify key contains expected fields
+            let keyString = String(data: keyData, encoding: .utf8) ?? ""
+            XCTAssertTrue(keyString.contains("BEGIN RSA PRIVATE KEY") || keyString.contains("BEGIN PRIVATE KEY"))
+            XCTAssertTrue(keyString.contains("END RSA PRIVATE KEY") || keyString.contains("END PRIVATE KEY"))
+        } catch TLSError.opensslNotAvailable {
+            // OpenSSL not available - this is expected in some CI environments
+            print("OpenSSL not available - skipping certificate generation test")
+            throw XCTSkip("OpenSSL not available on this system")
+        }
     }
     
     func testTLSContextCreation() throws {
-        // Generate certificates first
-        try tlsManager.generateSelfSignedCertificate()
-        
-        // Create TLS context
-        let tlsContext = try tlsManager.setupTLSContext()
-        XCTAssertNotNil(tlsContext)
+        do {
+            // Generate certificates first
+            try tlsManager.generateSelfSignedCertificate()
+            
+            // Create TLS context
+            let tlsContext = try tlsManager.setupTLSContext()
+            XCTAssertNotNil(tlsContext)
+        } catch TLSError.opensslNotAvailable {
+            // OpenSSL not available - this is expected in some CI environments
+            print("OpenSSL not available - skipping TLS context creation test")
+            throw XCTSkip("OpenSSL not available on this system")
+        }
     }
     
     func testHTTPServerWithTLS() throws {
@@ -74,15 +86,21 @@ final class TLSTests: XCTestCase {
     }
     
     func testCertificateGenerationIdempotent() throws {
-        // Generate certificates first time
-        try tlsManager.generateSelfSignedCertificate()
-        let firstCertData = try Data(contentsOf: URL(fileURLWithPath: "localhost.crt"))
-        
-        // Generate certificates second time (should use existing)
-        try tlsManager.generateSelfSignedCertificate()
-        let secondCertData = try Data(contentsOf: URL(fileURLWithPath: "localhost.crt"))
-        
-        // Should be the same (existing certificate used)
-        XCTAssertEqual(firstCertData, secondCertData)
+        do {
+            // Generate certificates first time
+            try tlsManager.generateSelfSignedCertificate()
+            let firstCertData = try Data(contentsOf: URL(fileURLWithPath: "localhost.crt"))
+            
+            // Generate certificates second time (should use existing)
+            try tlsManager.generateSelfSignedCertificate()
+            let secondCertData = try Data(contentsOf: URL(fileURLWithPath: "localhost.crt"))
+            
+            // Should be the same (existing certificate used)
+            XCTAssertEqual(firstCertData, secondCertData)
+        } catch TLSError.opensslNotAvailable {
+            // OpenSSL not available - this is expected in some CI environments
+            print("OpenSSL not available - skipping certificate idempotency test")
+            throw XCTSkip("OpenSSL not available on this system")
+        }
     }
 }
