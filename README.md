@@ -203,7 +203,7 @@ SwiftServe/
 │   └── index.html          # Demo page
 ├── Package.swift           # Swift Package Manager configuration
 ├── Caddyfile               # Example configuration
-└── LICENSE                 # LGPLv3 License
+└── LICENSE.md                 # LGPLv3 License
 ```
 
 ### Requirements
@@ -228,12 +228,12 @@ For HTTPS, SwiftServe automatically generates self-signed certificates for local
 
 ## License
 
-This project is licensed under the GNU Lesser General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the GNU Lesser General Public License v3.0 - see the [LICENSE](LICENSE.md) file for details.
 
 ## Acknowledgments
 
 Made with ❤️ in Atlanta, Georgia  
-Project created at the [LibreTech Collective](https://sites.gatech.edu/gtltc/) at [Georgia Institute of Technology](https://gatech.edu)
+Project created by [LibreTech Collective](https://sites.gatech.edu/gtltc/) at the [Georgia Institute of Technology](https://gatech.edu)
 
 ## Contributing
 
