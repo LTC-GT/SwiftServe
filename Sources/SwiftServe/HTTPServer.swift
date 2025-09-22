@@ -52,8 +52,12 @@ public class HTTPServer {
             }
         }
         
-        // Create socket
+        // Create socket with cross-platform compatibility
+        #if os(Linux)
+        serverSocket = socket(AF_INET, Int32(SOCK_STREAM.rawValue), 0)
+        #else
         serverSocket = socket(AF_INET, SOCK_STREAM, 0)
+        #endif
         
         guard let socket = serverSocket, socket >= 0 else {
             logger.logError("Failed to create socket")

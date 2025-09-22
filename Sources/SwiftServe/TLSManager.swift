@@ -74,7 +74,14 @@ public class TLSManager {
     
     private func shell(_ command: String) -> Int32 {
         let task = Process()
-        task.launchPath = "/bin/sh"
+        
+        // Use the modern API to avoid deprecation warnings
+        if #available(macOS 10.13, *) {
+            task.executableURL = URL(fileURLWithPath: "/bin/sh")
+        } else {
+            task.launchPath = "/bin/sh"
+        }
+        
         task.arguments = ["-c", command]
         
         // Redirect stderr to avoid cluttering output
@@ -82,7 +89,16 @@ public class TLSManager {
         task.standardError = pipe
         task.standardOutput = pipe
         
-        task.launch()
+        do {
+            if #available(macOS 10.13, *) {
+                try task.run()
+            } else {
+                task.launch()
+            }
+        } catch {
+            return 1
+        }
+        
         task.waitUntilExit()
         return task.terminationStatus
     }
