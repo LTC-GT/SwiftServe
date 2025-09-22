@@ -58,39 +58,34 @@ struct SwiftServe {
         }
         
         // Start servers for all configured sites
-        do {
-            if config.sites.count == 1 {
-                let site = config.sites[0]
-                let server = HTTPServer(port: site.port, enableTLS: site.enableTLS, debugMode: config.debugMode, serveDirectory: site.root)
-                try server.start()
-                
-                // Handle Ctrl+C gracefully
-                signal(SIGINT) { _ in
-                    print("\n🛑 Shutting down server...")
-                    exit(0)
-                }
-                
-                // Keep the server running
-                server.waitForever()
-            } else {
-                print("Multi-site configuration detected but not yet supported.")
-                print("Using first site configuration...")
-                let site = config.sites[0]
-                let server = HTTPServer(port: site.port, enableTLS: site.enableTLS, debugMode: config.debugMode, serveDirectory: site.root)
-                try server.start()
-                
-                // Handle Ctrl+C gracefully
-                signal(SIGINT) { _ in
-                    print("\n🛑 Shutting down server...")
-                    exit(0)
-                }
-                
-                // Keep the server running
-                server.waitForever()
+        if config.sites.count == 1 {
+            let site = config.sites[0]
+            let server = HTTPServer(port: site.port, enableTLS: site.enableTLS, debugMode: config.debugMode, serveDirectory: site.root)
+            server.start()
+            
+            // Handle Ctrl+C gracefully
+            signal(SIGINT) { _ in
+                print("\n🛑 Shutting down server...")
+                exit(0)
             }
-        } catch {
-            print("❌ Failed to start server: \(error)")
-            exit(1)
+            
+            // Keep the server running
+            server.waitForever()
+        } else {
+            print("Multi-site configuration detected but not yet supported.")
+            print("Using first site configuration...")
+            let site = config.sites[0]
+            let server = HTTPServer(port: site.port, enableTLS: site.enableTLS, debugMode: config.debugMode, serveDirectory: site.root)
+            server.start()
+            
+            // Handle Ctrl+C gracefully
+            signal(SIGINT) { _ in
+                print("\n🛑 Shutting down server...")
+                exit(0)
+            }
+            
+            // Keep the server running
+            server.waitForever()
         }
     }
     

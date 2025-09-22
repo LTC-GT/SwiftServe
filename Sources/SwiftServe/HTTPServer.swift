@@ -1,14 +1,32 @@
 import Foundation
-import Network
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
+
+// OpenSSL bindings for TLS support
+#if canImport(Darwin)
+typealias SSL_CTX = OpaquePointer
+typealias SSL = OpaquePointer
+typealias SSL_METHOD = OpaquePointer
+#elseif canImport(Glibc)
+typealias SSL_CTX = OpaquePointer
+typealias SSL = OpaquePointer
+typealias SSL_METHOD = OpaquePointer
+#endif
 
 public class HTTPServer {
     private let port: UInt16
     private let enableTLS: Bool
     private let logger: Logger
     private let fileHandler: FileHandler
-    private var listener: NWListener?
+    private var serverSocket: Int32?
     private var isRunning = false
     private let serveDirectory: String
+    private var acceptQueue = DispatchQueue(label: "server.accept", qos: .userInitiated)
+    private var tlsManager: TLSManager?
+    private var tlsContext: TLSContext?
     
     public init(port: UInt16 = 8080, enableTLS: Bool = false, debugMode: Bool = false, serveDirectory: String = "serve") {
         self.port = port
@@ -16,221 +34,187 @@ public class HTTPServer {
         self.logger = Logger(debugMode: debugMode)
         self.serveDirectory = serveDirectory
         self.fileHandler = FileHandler(serveDirectory: serveDirectory)
-    }
-    
-    public func start() throws {
-        let parameters: NWParameters
         
         if enableTLS {
-            parameters = try createTLSParameters()
-        } else {
-            parameters = .tcp
+            self.tlsManager = TLSManager(logger: logger)
         }
-        
-        listener = try NWListener(using: parameters, on: NWEndpoint.Port(rawValue: port)!)
-        
-        listener?.stateUpdateHandler = { [weak self] state in
-            switch state {
-            case .ready:
-                let protocolName = self?.enableTLS == true ? "HTTPS" : "HTTP"
-                self?.logger.logInfo("🚀 \(protocolName) Server started on localhost:\(self?.port ?? 0)")
-                if self?.enableTLS == true {
-                    self?.logger.logWarning("Using self-signed certificate - browsers will show security warnings")
-                    self?.logger.logInfo("In your browser, you can proceed past the security warning for localhost testing")
-                }
-            case .failed(let error):
-                self?.logger.logError("Server failed to start: \(error)")
-            case .cancelled:
-                self?.logger.logInfo("Server stopped")
-            default:
-                break
+    }
+    
+    public func start() {
+        // Setup TLS if enabled
+        if enableTLS {
+            do {
+                tlsContext = try tlsManager?.setupTLSContext()
+                logger.logInfo("TLS enabled with Let's Encrypt-style certificates")
+            } catch {
+                logger.logError("Failed to setup TLS: \(error)")
+                return
             }
         }
         
-        listener?.newConnectionHandler = { [weak self] connection in
-            self?.handleConnection(connection)
+        // Create socket
+        serverSocket = socket(AF_INET, SOCK_STREAM, 0)
+        
+        guard let socket = serverSocket, socket >= 0 else {
+            logger.logError("Failed to create socket")
+            return
         }
         
-        listener?.start(queue: .global())
+        // Set socket options
+        var reuse: Int32 = 1
+        setsockopt(socket, SOL_SOCKET, SO_REUSEADDR, &reuse, socklen_t(MemoryLayout<Int32>.size))
+        
+        // Bind socket
+        var serverAddr = sockaddr_in()
+        serverAddr.sin_family = sa_family_t(AF_INET)
+        serverAddr.sin_port = UInt16(port).bigEndian
+        serverAddr.sin_addr.s_addr = INADDR_ANY
+        
+        let bindResult = withUnsafePointer(to: &serverAddr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                bind(socket, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        
+        guard bindResult == 0 else {
+            logger.logError("Failed to bind socket to port \(port)")
+            close(socket)
+            return
+        }
+        
+        // Listen
+        guard listen(socket, SOMAXCONN) == 0 else {
+            logger.logError("Failed to listen on socket")
+            close(socket)
+            return
+        }
+        
         isRunning = true
+        let protocolName = enableTLS ? "HTTPS" : "HTTP"
+        logger.logInfo("\(protocolName) Server listening on port \(port)")
+        
+        // Accept connections in background
+        acceptQueue.async { [weak self] in
+            self?.acceptConnections()
+        }
     }
     
     public func stop() {
-        listener?.cancel()
         isRunning = false
+        if let socket = serverSocket {
+            close(socket)
+            serverSocket = nil
+        }
+        logger.logInfo("Server stopped")
     }
     
     public func waitForever() {
         while isRunning {
-            RunLoop.current.run(until: Date().addingTimeInterval(1))
+            Thread.sleep(forTimeInterval: 0.1)
         }
     }
     
-    private func createTLSParameters() throws -> NWParameters {
-        let tlsOptions = NWProtocolTLS.Options()
+    private func acceptConnections() {
+        guard let socket = serverSocket else { return }
         
-        // Generate certificate files if they don't exist
-        try generateSelfSignedCertificate()
-        
-        // For development: create a simple TLS configuration that accepts self-signed certificates
-        // This is a simplified approach that works better with Network framework
-        sec_protocol_options_set_verify_block(tlsOptions.securityProtocolOptions, { _, _, completion in
-            completion(true)
-        }, .global())
-        
-        // Try to load certificate from PKCS12 format (more compatible with Network framework)
-        do {
-            let identity = try createPKCS12Identity()
-            let secIdentity = sec_identity_create(identity)!
-            sec_protocol_options_set_local_identity(tlsOptions.securityProtocolOptions, secIdentity)
-            logger.logInfo("✅ Certificate identity loaded successfully")
-        } catch {
-            logger.logWarning("Could not load certificate identity: \(error)")
-            logger.logInfo("Proceeding with basic TLS configuration")
+        while isRunning {
+            var clientAddr = sockaddr_in()
+            var clientAddrLen = socklen_t(MemoryLayout<sockaddr_in>.size)
+            
+            let clientSocket = withUnsafeMutablePointer(to: &clientAddr) {
+                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    accept(socket, $0, &clientAddrLen)
+                }
+            }
+            
+            guard clientSocket >= 0 else {
+                if isRunning {
+                    logger.logError("Failed to accept connection")
+                }
+                continue
+            }
+            
+            // Handle connection in background
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                if self?.enableTLS == true {
+                    self?.handleTLSConnection(clientSocket)
+                } else {
+                    self?.handleClientConnection(clientSocket)
+                }
+            }
         }
-        
-        return NWParameters(tls: tlsOptions)
     }
     
-    private func generateSelfSignedCertificate() throws {
-        let certPath = "localhost.crt"
-        let keyPath = "localhost.key"
-        let p12Path = "localhost.p12"
-        
-        // Check if certificate files already exist
-        if FileManager.default.fileExists(atPath: p12Path) {
-            logger.logInfo("Using existing PKCS12 certificate: \(p12Path)")
+    private func handleTLSConnection(_ clientSocket: Int32) {
+        guard let tlsContext = tlsContext else {
+            logger.logError("TLS context not available")
+            close(clientSocket)
             return
         }
         
-        logger.logInfo("Generating Let's Encrypt-style self-signed certificate for localhost...")
-        logger.logInfo("Using email: example@example.com")
-        
-        // Generate private key (RSA 4096-bit for Let's Encrypt compatibility)
-        let generateKeyCommand = "openssl genrsa -out \(keyPath) 4096"
-        
-        // Create a certificate with Let's Encrypt-style fields
-        let generateCertCommand = """
-        openssl req -new -x509 -key \(keyPath) -out \(certPath) -days 90 \
-        -subj "/C=US/ST=CA/L=San Francisco/O=SwiftServe Development/OU=Engineering/CN=localhost/emailAddress=example@example.com" \
-        -addext "subjectAltName=DNS:localhost,DNS:127.0.0.1,IP:127.0.0.1,IP:::1" \
-        -addext "keyUsage=digitalSignature,keyEncipherment" \
-        -addext "extendedKeyUsage=serverAuth"
-        """
-        
-        // Create PKCS12 file (more compatible with macOS/iOS)
-        let createP12Command = """
-        openssl pkcs12 -export -out \(p12Path) -inkey \(keyPath) -in \(certPath) -passout pass:swiftserve
-        """
-        
-        let keyResult = shell(generateKeyCommand)
-        if keyResult != 0 {
-            throw NSError(domain: "HTTPServer", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to generate private key"])
+        guard let tlsSocket = tlsContext.wrapSocket(clientSocket) else {
+            logger.logError("Failed to wrap socket with TLS")
+            close(clientSocket)
+            return
         }
         
-        let certResult = shell(generateCertCommand)
-        if certResult != 0 {
-            throw NSError(domain: "HTTPServer", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to generate certificate"])
+        defer { tlsSocket.close() }
+        
+        // Read HTTP request through TLS
+        let bufferSize = 4096
+        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+        defer { buffer.deallocate() }
+        
+        let bytesRead = tlsSocket.read(buffer: buffer, size: bufferSize)
+        guard bytesRead > 0 else {
+            logger.logError("Failed to read from TLS client socket")
+            return
         }
         
-        let p12Result = shell(createP12Command)
-        if p12Result != 0 {
-            logger.logWarning("Failed to create PKCS12 file, continuing with PEM files")
-        } else {
-            logger.logInfo("✅ PKCS12 certificate created: \(p12Path)")
+        let requestData = Data(bytes: buffer, count: bytesRead)
+        guard let requestString = String(data: requestData, encoding: .utf8) else {
+            logger.logError("Failed to decode TLS request as UTF-8")
+            return
         }
         
-        logger.logInfo("✅ Let's Encrypt-style certificate generated: \(certPath)")
-        logger.logInfo("✅ RSA 4096-bit private key generated: \(keyPath)")
-        logger.logInfo("📧 Certificate email: example@example.com")
-        logger.logInfo("🔒 Certificate includes Subject Alternative Names for localhost and 127.0.0.1")
+        handleHTTPRequest(requestString, tlsSocket: tlsSocket)
     }
     
-    private func shell(_ command: String) -> Int32 {
-        let task = Process()
-        task.launchPath = "/bin/sh"
-        task.arguments = ["-c", command]
-        task.launch()
-        task.waitUntilExit()
-        return task.terminationStatus
-    }
-    
-    private func createPKCS12Identity() throws -> SecIdentity {
-        let p12Path = "localhost.p12"
-        
-        guard let p12Data = FileManager.default.contents(atPath: p12Path) else {
-            throw NSError(domain: "HTTPServer", code: 10, userInfo: [NSLocalizedDescriptionKey: "Could not read PKCS12 file"])
-        }
-        
-        let options: [String: Any] = [
-            kSecImportExportPassphrase as String: "swiftserve"
-        ]
-        
-        var items: CFArray?
-        let status = SecPKCS12Import(p12Data as CFData, options as CFDictionary, &items)
-        
-        guard status == errSecSuccess,
-              let itemsArray = items as? [[String: Any]],
-              let firstItem = itemsArray.first,
-              let identity = firstItem[kSecImportItemIdentity as String] else {
-            throw NSError(domain: "HTTPServer", code: 11, userInfo: [NSLocalizedDescriptionKey: "Could not import PKCS12 identity"])
-        }
-        
-        return identity as! SecIdentity
-    }
-    
-    private func handleConnection(_ connection: NWConnection) {
-        let startTime = Date()
-        var clientIP = "unknown"
-        
-        if case let .hostPort(host, _) = connection.endpoint {
-            clientIP = "\(host)"
-        }
-        
-        connection.stateUpdateHandler = { state in
-            switch state {
-            case .ready:
-                break
-            case .failed(let error):
-                self.logger.logError("Connection failed: \(error)")
-            default:
-                break
-            }
-        }
-        
-        connection.start(queue: .global())
+    private func handleClientConnection(_ clientSocket: Int32) {
+        defer { close(clientSocket) }
         
         // Read HTTP request
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
-            if let error = error {
-                self?.logger.logError("Failed to receive data: \(error)")
-                return
-            }
-            
-            guard let data = data, !data.isEmpty else {
-                connection.cancel()
-                return
-            }
-            
-            self?.processHTTPRequest(data: data, connection: connection, clientIP: clientIP, startTime: startTime)
-        }
-    }
-    
-    private func processHTTPRequest(data: Data, connection: NWConnection, clientIP: String, startTime: Date) {
-        guard let requestString = String(data: data, encoding: .utf8) else {
-            sendResponse(connection: connection, statusCode: 400, body: "Bad Request", contentType: "text/plain")
+        let bufferSize = 4096
+        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+        defer { buffer.deallocate() }
+        
+        let bytesRead = recv(clientSocket, buffer, bufferSize, 0)
+        guard bytesRead > 0 else {
+            logger.logError("Failed to read from client socket")
             return
         }
+        
+        let requestData = Data(bytes: buffer, count: bytesRead)
+        guard let requestString = String(data: requestData, encoding: .utf8) else {
+            logger.logError("Failed to decode request as UTF-8")
+            return
+        }
+        
+        handleHTTPRequest(requestString, clientSocket: clientSocket)
+    }
+    
+    private func handleHTTPRequest(_ requestString: String, clientSocket: Int32? = nil, tlsSocket: TLSSocket? = nil) {
+        let startTime = Date()
         
         let lines = requestString.components(separatedBy: "\r\n")
         guard let requestLine = lines.first else {
-            sendResponse(connection: connection, statusCode: 400, body: "Bad Request", contentType: "text/plain")
+            sendResponse(clientSocket: clientSocket, statusCode: 400, body: "Bad Request", contentType: "text/plain")
             return
         }
         
         let requestComponents = requestLine.components(separatedBy: " ")
         guard requestComponents.count >= 3 else {
-            sendResponse(connection: connection, statusCode: 400, body: "Bad Request", contentType: "text/plain")
+            sendResponse(clientSocket: clientSocket, statusCode: 400, body: "Bad Request", contentType: "text/plain")
             return
         }
         
@@ -253,13 +237,13 @@ public class HTTPServer {
         let referer = headers["Referer"]
         let acceptLanguage = headers["Accept-Language"]
         
-        // Log request with enhanced packet info
+        // Log request
         logger.logRequest(
             method: method,
             path: path,
             httpVersion: httpVersion,
             userAgent: userAgent,
-            clientIP: clientIP,
+            clientIP: "127.0.0.1",
             contentLength: contentLength,
             referer: referer,
             acceptLanguage: acceptLanguage,
@@ -269,32 +253,32 @@ public class HTTPServer {
         // Handle request based on method
         switch method {
         case "GET", "HEAD":
-            handleGetRequest(path: path, connection: connection, clientIP: clientIP, startTime: startTime)
+            handleGetRequest(path: path, clientSocket: clientSocket, tlsSocket: tlsSocket, startTime: startTime)
         default:
-            sendResponse(connection: connection, statusCode: 405, body: "Method Not Allowed", contentType: "text/plain")
-            logger.logResponse(statusCode: 405, contentType: "text/plain", contentLength: 18, duration: Date().timeIntervalSince(startTime), clientIP: clientIP, path: path)
+            sendResponse(clientSocket: clientSocket, tlsSocket: tlsSocket, statusCode: 405, body: "Method Not Allowed", contentType: "text/plain")
+            logger.logResponse(statusCode: 405, contentType: "text/plain", contentLength: 18, duration: Date().timeIntervalSince(startTime), clientIP: "127.0.0.1", path: path)
         }
     }
     
-    private func handleGetRequest(path: String, connection: NWConnection, clientIP: String, startTime: Date) {
+    private func handleGetRequest(path: String, clientSocket: Int32? = nil, tlsSocket: TLSSocket? = nil, startTime: Date) {
         let result = fileHandler.handleRequest(for: path)
         
         if let data = result.data {
-            sendResponse(connection: connection, statusCode: result.statusCode, data: data, contentType: result.mimeType)
-            logger.logResponse(statusCode: result.statusCode, contentType: result.mimeType, contentLength: data.count, duration: Date().timeIntervalSince(startTime), clientIP: clientIP, path: path)
+            sendResponse(clientSocket: clientSocket, tlsSocket: tlsSocket, statusCode: result.statusCode, data: data, contentType: result.mimeType)
+            logger.logResponse(statusCode: result.statusCode, contentType: result.mimeType, contentLength: data.count, duration: Date().timeIntervalSince(startTime), clientIP: "127.0.0.1", path: path)
         } else {
             let errorMessage = result.statusCode == 404 ? "Not Found" : "Internal Server Error"
-            sendResponse(connection: connection, statusCode: result.statusCode, body: errorMessage, contentType: "text/plain")
-            logger.logResponse(statusCode: result.statusCode, contentType: "text/plain", contentLength: errorMessage.count, duration: Date().timeIntervalSince(startTime), clientIP: clientIP, path: path)
+            sendResponse(clientSocket: clientSocket, tlsSocket: tlsSocket, statusCode: result.statusCode, body: errorMessage, contentType: "text/plain")
+            logger.logResponse(statusCode: result.statusCode, contentType: "text/plain", contentLength: errorMessage.count, duration: Date().timeIntervalSince(startTime), clientIP: "127.0.0.1", path: path)
         }
     }
     
-    private func sendResponse(connection: NWConnection, statusCode: Int, body: String, contentType: String) {
+    private func sendResponse(clientSocket: Int32? = nil, tlsSocket: TLSSocket? = nil, statusCode: Int, body: String, contentType: String) {
         let data = body.data(using: .utf8) ?? Data()
-        sendResponse(connection: connection, statusCode: statusCode, data: data, contentType: contentType)
+        sendResponse(clientSocket: clientSocket, tlsSocket: tlsSocket, statusCode: statusCode, data: data, contentType: contentType)
     }
     
-    private func sendResponse(connection: NWConnection, statusCode: Int, data: Data, contentType: String) {
+    private func sendResponse(clientSocket: Int32? = nil, tlsSocket: TLSSocket? = nil, statusCode: Int, data: Data, contentType: String) {
         let statusText = HTTPStatusText.text(for: statusCode)
         let headers = [
             "Content-Type": contentType,
@@ -312,15 +296,20 @@ public class HTTPServer {
         var responseData = response.data(using: .utf8) ?? Data()
         responseData.append(data)
         
-        connection.send(content: responseData, completion: .contentProcessed { _ in
-            connection.cancel()
-        })
+        // Send response through appropriate socket
+        if let tlsSocket = tlsSocket {
+            let _ = tlsSocket.write(data: responseData)
+        } else if let clientSocket = clientSocket {
+            responseData.withUnsafeBytes { bytes in
+                let _ = send(clientSocket, bytes.bindMemory(to: UInt8.self).baseAddress, responseData.count, 0)
+            }
+        }
     }
 }
 
 private struct HTTPStatusText {
-    static func text(for statusCode: Int) -> String {
-        switch statusCode {
+    static func text(for: Int) -> String {
+        switch `for` {
         case 200: return "OK"
         case 404: return "Not Found"
         case 405: return "Method Not Allowed"

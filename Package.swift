@@ -3,9 +3,6 @@ import PackageDescription
 
 let package = Package(
     name: "SwiftServe",
-    platforms: [
-        .macOS(.v13)
-    ],
     products: [
         .executable(
             name: "SwiftServe",
@@ -13,7 +10,7 @@ let package = Package(
         )
     ],
     dependencies: [
-        // No external dependencies needed for basic HTTP server
+        // No external dependencies - uses system OpenSSL for TLS
     ],
     targets: [
         .executableTarget(

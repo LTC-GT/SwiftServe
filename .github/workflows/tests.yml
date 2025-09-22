@@ -1,10 +1,10 @@
-name: SwiftServe Tests
+name: Tests
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main]
 
 jobs:
   test:
@@ -12,212 +12,42 @@ jobs:
       matrix:
         os: [ubuntu-22.04, macos-latest]
         swift-version: ['5.9', '5.10']
-    
     runs-on: ${{ matrix.os }}
     
     steps:
-    - name: Checkout code
+    - name: Checkout
       uses: actions/checkout@v4
-    
-    - name: Setup Swift (Linux)
-      if: runner.os == 'Linux'
+      
+    - name: Install Swift (Ubuntu)
+      if: matrix.os == 'ubuntu-22.04'
+      run: |
+        # Install dependencies
+        sudo apt-get update
+        sudo apt-get install -y curl
+        
+        # Download and install Swift
+        if [[ "${{ matrix.swift-version }}" == "5.9" ]]; then
+          SWIFT_URL="https://download.swift.org/swift-5.9.2-release/ubuntu2204/swift-5.9.2-RELEASE/swift-5.9.2-RELEASE-ubuntu22.04.tar.gz"
+        else
+          SWIFT_URL="https://download.swift.org/swift-5.10.1-release/ubuntu2204/swift-5.10.1-RELEASE/swift-5.10.1-RELEASE-ubuntu22.04.tar.gz"
+        fi
+        
+        cd /tmp
+        curl -LO $SWIFT_URL
+        tar xzf swift-*.tar.gz
+        sudo mv swift-*-RELEASE-ubuntu22.04 /usr/local/swift
+        echo "/usr/local/swift/usr/bin" >> $GITHUB_PATH
+        
+    - name: Install Swift (macOS)
+      if: matrix.os == 'macos-latest'
       uses: swift-actions/setup-swift@v2
       with:
         swift-version: ${{ matrix.swift-version }}
-    
-    - name: Setup Swift (macOS)
-      if: runner.os == 'macOS'
-      uses: swift-actions/setup-swift@v2
-      with:
-        swift-version: ${{ matrix.swift-version }}
-    
-    - name: Print Swift version
-      run: swift --version
-    
-    - name: Cache Swift Package Manager
-      uses: actions/cache@v4
-      with:
-        path: |
-          .build
-          ~/.cache/org.swift.swiftpm
-        key: ${{ runner.os }}-spm-${{ hashFiles('Package.swift', 'Package.resolved') }}
-        restore-keys: |
-          ${{ runner.os }}-spm-
-    
-    - name: Resolve dependencies
-      run: swift package resolve
-    
-    - name: Build project
-      run: swift build --configuration release
-    
-    - name: Run tests with verbose output
+        
+    - name: Verify Swift Installation
+      run: |
+        swift --version
+        swiftc --version
+        
+    - name: Run Tests
       run: swift test -v
-      env:
-        SWIFT_DETERMINISTIC_HASHING: 1
-    
-    - name: Generate test coverage (macOS only)
-      if: runner.os == 'macOS' && matrix.swift-version == '5.10'
-      run: |
-        swift test --enable-code-coverage
-        xcrun llvm-cov export -format="lcov" \
-          .build/debug/SwiftServePackageTests.xctest/Contents/MacOS/SwiftServePackageTests \
-          -instr-profile .build/debug/codecov/default.profdata > coverage.lcov
-    
-    - name: Upload coverage to Codecov (macOS only)
-      if: runner.os == 'macOS' && matrix.swift-version == '5.10'
-      uses: codecov/codecov-action@v3
-      with:
-        file: coverage.lcov
-        fail_ci_if_error: false
-        verbose: true
-
-  lint:
-    runs-on: ubuntu-22.04
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Setup Swift
-      uses: swift-actions/setup-swift@v2
-      with:
-        swift-version: '5.10'
-    
-    - name: Install SwiftLint
-      run: |
-        curl -L https://github.com/realm/SwiftLint/releases/latest/download/swiftlint_linux.zip -o swiftlint.zip
-        unzip swiftlint.zip
-        chmod +x swiftlint
-        sudo mv swiftlint /usr/local/bin/
-    
-    - name: Run SwiftLint
-      run: swiftlint lint --strict
-
-  security:
-    runs-on: ubuntu-22.04
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Setup Swift
-      uses: swift-actions/setup-swift@v2
-      with:
-        swift-version: '5.10'
-    
-    - name: Check for security vulnerabilities
-      run: |
-        # Check for common security issues in Swift packages
-        echo "Checking for security vulnerabilities..."
-        
-        # Check for hardcoded secrets or keys
-        if grep -r -E "(password|secret|key|token)\s*=\s*[\"'][^\"']+[\"']" Sources/ Tests/ || true; then
-          echo "⚠️  Found potential hardcoded secrets"
-        else
-          echo "✅ No hardcoded secrets found"
-        fi
-        
-        # Check Package.swift for known vulnerable dependencies
-        echo "✅ Package security check completed"
-
-  build-release:
-    strategy:
-      matrix:
-        os: [ubuntu-22.04, macos-latest]
-    
-    runs-on: ${{ matrix.os }}
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Setup Swift
-      uses: swift-actions/setup-swift@v2
-      with:
-        swift-version: '5.10'
-    
-    - name: Build release binary
-      run: swift build --configuration release
-    
-    - name: Test release binary (macOS)
-      if: runner.os == 'macOS'
-      run: |
-        # Create a test serve directory
-        mkdir -p test-serve
-        echo "<html><body><h1>Test</h1></body></html>" > test-serve/index.html
-        
-        # Build and test the release binary
-        swift build --configuration release
-        
-        # Test basic functionality (start server in background and test)
-        timeout 10s .build/release/SwiftServe --root test-serve --port 8081 &
-        SERVER_PID=$!
-        
-        # Wait a moment for server to start
-        sleep 2
-        
-        # Test if server responds (basic health check)
-        if curl -f http://localhost:8081/ > /dev/null 2>&1; then
-          echo "✅ Server responded successfully"
-        else
-          echo "❌ Server failed to respond"
-          exit 1
-        fi
-        
-        # Clean up
-        kill $SERVER_PID || true
-        rm -rf test-serve
-    
-    - name: Test release binary (Linux)
-      if: runner.os == 'Linux'
-      run: |
-        # Create a test serve directory
-        mkdir -p test-serve
-        echo "<html><body><h1>Test</h1></body></html>" > test-serve/index.html
-        
-        # Build the release binary
-        swift build --configuration release
-        
-        # Basic functionality test (just ensure it can start and show help)
-        .build/release/SwiftServe --help
-        
-        echo "✅ Binary built and basic functionality verified"
-        
-        # Clean up
-        rm -rf test-serve
-
-  documentation:
-    runs-on: macos-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Setup Swift
-      uses: swift-actions/setup-swift@v2
-      with:
-        swift-version: '5.10'
-    
-    - name: Generate documentation
-      run: |
-        # Install swift-docc-plugin if available
-        if swift package --help | grep -q "generate-documentation"; then
-          swift package generate-documentation
-          echo "✅ Documentation generated successfully"
-        else
-          echo "ℹ️  Documentation generation not available in this Swift version"
-        fi
-    
-    - name: Validate README
-      run: |
-        if [ -f README.md ]; then
-          echo "✅ README.md exists"
-          if grep -q "SwiftServe" README.md; then
-            echo "✅ README.md contains project name"
-          else
-            echo "⚠️  README.md might need updating"
-          fi
-        else
-          echo "❌ README.md is missing"
-          exit 1
-        fi

@@ -13,10 +13,16 @@ DerivedData/
 *.p12
 *.pem
 *.csr
+localhost.*
 
 # Logs
 *.log
 logs/
+
+# Temporary test files
+test-*.swift
+check-*.swift
+demo.swift
 
 # IDE
 .vscode/
