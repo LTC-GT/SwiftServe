@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SwiftServe Demo</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
+    <style>
+        body {
+            font-family: 'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 2rem;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        .subtitle {
+            text-align: center;
+            font-size: 1.2rem;
+            opacity: 0.9;
+            margin-bottom: 2rem;
+        }
+        .feature {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            border-left: 4px solid #ff6b6b;
+        }
+        .feature h3 {
+            margin-top: 0;
+            color: #ff6b6b;
+        }
+        .status {
+            text-align: center;
+            background: rgba(76, 175, 80, 0.2);
+            border: 2px solid #4caf50;
+            border-radius: 10px;
+            padding: 1rem;
+            margin: 2rem 0;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 2rem;
+            opacity: 0.7;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 SwiftServe</h1>
+        <p class="subtitle">A simple HTTP server written in Swift</p>
+        
+        <div class="status">
+            <h2>✅ Server is running successfully!</h2>
+            <p>Your Swift HTTP server is serving files from the /serve directory</p>
+        </div>
+
+        <div class="feature">
+            <h3>📦 Features</h3>
+            <ul>
+                <li>HTTP file serving from /serve directory</li>
+                <li>Caddy-style debug logging with packet and user info</li>
+                <li>Built-in MIME type detection</li>
+                <li>Localhost development server</li>
+                <li>Swift-native implementation</li>
+            </ul>
+        </div>
+
+        <div class="feature">
+            <h3>🔧 Debug Info</h3>
+            <p>Check your terminal to see detailed request logs including:</p>
+            <ul>
+                <li>Client IP address and port</li>
+                <li>HTTP method and protocol version</li>
+                <li>Request URI and headers</li>
+                <li>Response status and size</li>
+                <li>User-Agent information</li>
+            </ul>
+        </div>
+
+        <div class="feature">
+            <h3>📁 File Structure</h3>
+            <p>Place your HTML, CSS, JS, and other static files in the <code>/serve</code> directory.</p>
+            <p>The server will automatically serve them with appropriate MIME types.</p>
+        </div>
+
+        <div class="footer">
+            <p>SwiftServe - Developed with Swift ❤️</p>
+            <p>Made with ❤️ in Atlanta, Georgia</p>
+            <p>Project created at the LibreTech Collective at <a href="https://gatech.edu" style="color: #ff6b6b; text-decoration: none;">Georgia Institute of Technology</a></p>
+            <p>Current time: <span id="time"></span></p>
+        </div>
+    </div>
+
+    <script>
+        function updateTime() {
+            document.getElementById('time').textContent = new Date().toLocaleString();
+        }
+        updateTime();
+        setInterval(updateTime, 1000);
+    </script>
+</body>
+</html>

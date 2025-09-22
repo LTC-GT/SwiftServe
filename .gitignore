@@ -1,0 +1,62 @@
+# Swift
+.build/
+.swiftpm/
+Package.resolved
+*.xcodeproj/
+*.xcworkspace/
+DerivedData/
+.DS_Store
+
+# Certificate files (generated at runtime)
+*.crt
+*.key
+*.p12
+*.pem
+*.csr
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# SwiftServe specific
+Caddyfile.backup
+*.backup
+
+# Binary distribution
+dist/
+releases/
+*.tar.gz
+*.zip
+SwiftServe
+swiftserve

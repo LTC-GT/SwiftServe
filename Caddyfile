@@ -1,0 +1,16 @@
+# SwiftServe Configuration File
+# This file follows the basic Caddyfile syntax for simple configurations
+
+# HTTP server on port 8080
+localhost:8080 {
+    root * serve
+}
+
+# HTTPS server on port 8443 (uncomment to enable)
+# localhost:8443 {
+#     root * serve
+#     tls internal
+# }
+
+# Enable debug logging globally
+debug
