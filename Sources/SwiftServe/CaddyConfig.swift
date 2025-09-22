@@ -126,7 +126,7 @@ public struct CaddyConfig {
     /// Parse address string to extract host, port, and TLS info
     private static func parseAddress(_ address: String) -> (host: String, port: UInt16, enableTLS: Bool) {
         var host = "localhost"
-        var port: UInt16 = 8080
+        var port: UInt16 = 80 // Default HTTP port
         var enableTLS = false
         
         if address.isEmpty {
@@ -142,7 +142,7 @@ public struct CaddyConfig {
             if components.count > 1, let parsedPort = UInt16(components[1]) {
                 port = parsedPort
             } else {
-                port = 8443 // Default HTTPS port
+                port = 8443 // Default HTTPS port for development
             }
         } else if address.hasPrefix("http://") {
             let cleanAddress = String(address.dropFirst(7)) // Remove "http://"

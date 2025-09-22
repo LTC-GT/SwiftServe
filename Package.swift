@@ -20,6 +20,11 @@ let package = Package(
             name: "SwiftServe",
             dependencies: [],
             path: "Sources/SwiftServe"
+        ),
+        .testTarget(
+            name: "SwiftServeTests",
+            dependencies: ["SwiftServe"],
+            path: "Tests/SwiftServeTests"
         )
     ]
 )
