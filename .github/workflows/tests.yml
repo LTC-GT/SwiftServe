@@ -19,12 +19,19 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
       
-    - name: Install Dependencies (Ubuntu)
+    - name: Install Dependencies and Swift (Ubuntu)
       if: matrix.os == 'ubuntu-22.04'
       run: |
         # Install dependencies including OpenSSL for TLS certificate generation
         sudo apt-get update
-        sudo apt-get install -y openssl
+        sudo apt-get install -y curl openssl
+        
+        # Download and install Swift 6.0.1 directly
+        cd /tmp
+        curl -LO "https://download.swift.org/swift-6.0.1-release/ubuntu2204/swift-6.0.1-RELEASE/swift-6.0.1-RELEASE-ubuntu22.04.tar.gz"
+        tar xzf swift-*.tar.gz
+        sudo mv swift-*-RELEASE-ubuntu22.04 /usr/local/swift
+        echo "/usr/local/swift/usr/bin" >> $GITHUB_PATH
         
     - name: Install Dependencies (macOS)
       if: matrix.os == 'macos-latest'
@@ -32,10 +39,11 @@ jobs:
         # Install OpenSSL for TLS certificate generation
         brew install openssl
         
-    - name: Setup Swift
-      uses: swift-actions/setup-swift@v2
+    - name: Setup Xcode (macOS)
+      if: matrix.os == 'macos-latest'
+      uses: maxim-lobanov/setup-xcode@v1
       with:
-        swift-version: '6.0'
+        xcode-version: latest-stable
         
     - name: Verify Swift Installation
       run: |
@@ -49,4 +57,12 @@ jobs:
         echo "OpenSSL is properly installed and functional"
         
     - name: Run Tests
-      run: swift test -v
+      run: |
+        if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+          # Use xcodebuild for macOS to ensure proper XCTest framework linking
+          swift package generate-xcodeproj
+          xcodebuild test -scheme SwiftServe-Package -destination 'platform=macOS'
+        else
+          # Use swift test for Ubuntu
+          swift test -v
+        fi
