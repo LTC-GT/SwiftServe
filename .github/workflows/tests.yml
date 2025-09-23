@@ -45,6 +45,13 @@ jobs:
       with:
         xcode-version: latest-stable
         
+    - name: Setup macOS environment
+      if: matrix.os == 'macos-latest'
+      run: |
+        # Set up environment for Swift testing on macOS
+        echo "DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer" >> $GITHUB_ENV
+        echo "TOOLCHAINS=swift" >> $GITHUB_ENV
+        
     - name: Verify Swift Installation
       run: |
         swift --version
@@ -57,12 +64,4 @@ jobs:
         echo "OpenSSL is properly installed and functional"
         
     - name: Run Tests
-      run: |
-        if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-          # Use xcodebuild for macOS to ensure proper XCTest framework linking
-          swift package generate-xcodeproj
-          xcodebuild test -scheme SwiftServe-Package -destination 'platform=macOS'
-        else
-          # Use swift test for Ubuntu
-          swift test -v
-        fi
+      run: swift test -v
