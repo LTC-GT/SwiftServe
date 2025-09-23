@@ -11,7 +11,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-22.04, macos-latest]
-        swift-version: ['6.1', '6.2']
+        swift-version: ['6.0']
       fail-fast: false
     runs-on: ${{ matrix.os }}
     
@@ -19,48 +19,29 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
       
-    - name: Install Swift (Ubuntu)
+    - name: Install Dependencies (Ubuntu)
       if: matrix.os == 'ubuntu-22.04'
       run: |
         # Install dependencies including OpenSSL for TLS certificate generation
         sudo apt-get update
-        sudo apt-get install -y curl openssl
+        sudo apt-get install -y openssl
         
-        # Download and install Swift
-        if [[ "${{ matrix.swift-version }}" == "6.1" ]]; then
-          SWIFT_URL="https://download.swift.org/swift-6.1-release/ubuntu2204/swift-6.1-RELEASE/swift-6.1-RELEASE-ubuntu22.04.tar.gz"
-        else
-          SWIFT_URL="https://download.swift.org/swift-6.2-release/ubuntu2204/swift-6.2-RELEASE/swift-6.2-RELEASE-ubuntu22.04.tar.gz"
-        fi
-        
-        cd /tmp
-        curl -LO $SWIFT_URL
-        tar xzf swift-*.tar.gz
-        sudo mv swift-*-RELEASE-ubuntu22.04 /usr/local/swift
-        echo "/usr/local/swift/usr/bin" >> $GITHUB_PATH
-        
-    - name: Install Swift (macOS)
-      if: matrix.os == 'macos-latest'
-      uses: swift-actions/setup-swift@v2
-      with:
-        swift-version: ${{ matrix.swift-version }}
-        
-    - name: Set up Swift environment (macOS)
+    - name: Install Dependencies (macOS)
       if: matrix.os == 'macos-latest'
       run: |
-        # Set environment variables to help with module compilation
-        echo "SWIFT_DISABLE_MODULES_VALIDATION=1" >> $GITHUB_ENV
-        echo "SWIFT_DISABLE_CRASH_DETECTION=1" >> $GITHUB_ENV
-        # Disable module cache to avoid issues
-        export SWIFT_MODULE_CACHE_DISABLED=1
+        # Install OpenSSL for TLS certificate generation
+        brew install openssl
+        
+    - name: Setup Swift
+      uses: swift-actions/setup-swift@v2
+      with:
+        swift-version: '6.0'
         
     - name: Verify Swift Installation
       run: |
         swift --version
-        swiftc --version
         
-    - name: Verify OpenSSL Installation (Ubuntu)
-      if: matrix.os == 'ubuntu-22.04'
+    - name: Verify OpenSSL Installation
       run: |
         echo "Checking OpenSSL availability..."
         which openssl || (echo "OpenSSL not found in PATH" && exit 1)
