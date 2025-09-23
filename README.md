@@ -1,5 +1,7 @@
 # SwiftServe
 
+[![Tests](https://github.com/LTC-GT/SwiftServe/actions/workflows/tests.yml/badge.svg)](https://github.com/LTC-GT/SwiftServe/actions/workflows/tests.yml)
+
 **🚀 Cross-Platform HTTP/HTTPS Server in Pure Swift**
 
 A simple, fast, and truly cross-platform HTTP/HTTPS server written in Swift. Designed to work anywhere Swift runs - macOS, Linux, Windows, and more - with zero external dependencies.
