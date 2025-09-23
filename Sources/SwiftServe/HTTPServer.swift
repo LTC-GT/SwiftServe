@@ -16,6 +16,7 @@ typealias SSL = OpaquePointer
 typealias SSL_METHOD = OpaquePointer
 #endif
 
+@preconcurrency
 public class HTTPServer {
     private let port: UInt16
     private let enableTLS: Bool
