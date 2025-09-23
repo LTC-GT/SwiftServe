@@ -10,15 +10,46 @@ public class TLSManager {
     private let keyPath: String
     private let email: String
     private let logger: Logger
+    private let useRealCerts: Bool
+    private let domain: String?
     
-    public init(certPath: String = "localhost.crt", keyPath: String = "localhost.key", email: String = "example@example.com", logger: Logger) {
+    public init(
+        certPath: String = "localhost.crt", 
+        keyPath: String = "localhost.key", 
+        email: String = "example@example.com", 
+        useRealCerts: Bool = false,
+        domain: String? = nil,
+        logger: Logger
+    ) {
         self.certPath = certPath
         self.keyPath = keyPath
         self.email = email
+        self.useRealCerts = useRealCerts
+        self.domain = domain
         self.logger = logger
     }
     
     public func generateSelfSignedCertificate() throws {
+        // If real certificates are requested and domain is provided, use Let's Encrypt
+        if useRealCerts, let domain = domain {
+            logger.logInfo("🔒 Obtaining real Let's Encrypt certificate...")
+            let letsEncryptManager = LetsEncryptManager(
+                email: email,
+                staging: false,
+                webroot: "./serve",
+                logger: logger
+            )
+            
+            do {
+                try letsEncryptManager.obtainCertificate(for: domain)
+                logger.logInfo("✅ Real Let's Encrypt certificate obtained successfully!")
+                return
+            } catch {
+                logger.logWarning("⚠️ Failed to obtain Let's Encrypt certificate: \(error)")
+                logger.logInfo("🔄 Falling back to self-signed certificate...")
+            }
+        }
+        
         // Check if certificate files already exist
         if FileManager.default.fileExists(atPath: certPath) && FileManager.default.fileExists(atPath: keyPath) {
             logger.logInfo("Using existing certificate: \(certPath)")

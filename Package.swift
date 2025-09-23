@@ -10,12 +10,14 @@ let package = Package(
         )
     ],
     dependencies: [
-        // No external dependencies - uses system OpenSSL for TLS
+        // No external dependencies - pure Swift implementation
     ],
     targets: [
         .executableTarget(
             name: "SwiftServe",
-            dependencies: [],
+            dependencies: [
+                // No dependencies
+            ],
             path: "Sources/SwiftServe"
         ),
         .testTarget(

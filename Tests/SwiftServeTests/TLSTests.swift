@@ -8,7 +8,11 @@ final class TLSTests: XCTestCase {
     
     override func setUpWithError() throws {
         logger = Logger(debugMode: true)
-        tlsManager = TLSManager(logger: logger)
+        tlsManager = TLSManager(
+            useRealCerts: false,
+            domain: nil,
+            logger: logger
+        )
         
         // Clean up any existing certificate files
         try? FileManager.default.removeItem(atPath: "localhost.crt")

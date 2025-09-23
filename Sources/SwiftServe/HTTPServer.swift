@@ -29,7 +29,15 @@ public class HTTPServer {
     private var tlsManager: TLSManager?
     private var tlsContext: TLSContext?
     
-    public init(port: UInt16 = 8080, enableTLS: Bool = false, debugMode: Bool = false, serveDirectory: String = "serve") {
+    public init(
+        port: UInt16 = 8080, 
+        enableTLS: Bool = false, 
+        useRealCerts: Bool = false,
+        domain: String? = nil,
+        email: String = "example@example.com",
+        debugMode: Bool = false, 
+        serveDirectory: String = "serve"
+    ) {
         self.port = port
         self.enableTLS = enableTLS
         self.logger = Logger(debugMode: debugMode)
@@ -37,7 +45,12 @@ public class HTTPServer {
         self.fileHandler = FileHandler(serveDirectory: serveDirectory)
         
         if enableTLS {
-            self.tlsManager = TLSManager(logger: logger)
+            self.tlsManager = TLSManager(
+                email: email,
+                useRealCerts: useRealCerts,
+                domain: domain,
+                logger: logger
+            )
         }
     }
     

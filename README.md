@@ -1,5 +1,7 @@
 # SwiftServe
 
+[![Tests](https://github.com/LTC-GT/SwiftServe/actions/workflows/tests.yml/badge.svg)](https://github.com/LTC-GT/SwiftServe/actions/workflows/tests.yml)
+
 **🚀 Cross-Platform HTTP/HTTPS Server in Pure Swift**
 
 A simple, fast, and truly cross-platform HTTP/HTTPS server written in Swift. Designed to work anywhere Swift runs - macOS, Linux, Windows, and more - with zero external dependencies.
@@ -12,9 +14,34 @@ A simple, fast, and truly cross-platform HTTP/HTTPS server written in Swift. Des
 - **POSIX Sockets**: Pure cross-platform networking using POSIX sockets
 - **No Platform Dependencies**: Works on macOS, Linux, Windows - anywhere Swift runs
 - **Zero External Dependencies**: Uses only Swift Foundation and system libraries
+- **Certbot Integration**: Real Let's Encrypt certificates via external certbot tool
 
 ### 🔒 Automatic TLS/SSL Support  
-- **Let's Encrypt-style Certificates**: Automatic generation with RSA 4096-bit keys
+- **Let's Encrypt Certificate Issues**
+```bash
+# Check if certbot is installed
+which certbot
+
+# Install certbot (macOS)
+brew install certbot
+
+# Install certbot (Ubuntu)
+sudo apt-get install certbot
+
+# Install certbot (CentOS)
+sudo yum install certbot
+
+# Install certbot (pip)
+pip install certbot
+
+# Ensure domain points to your server
+nslookup yourdomain.com
+
+# Check port 80 is accessible
+sudo ufw allow 80/tcp  # Ubuntu
+sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT  # General Linux
+```
+- **Self-Signed Certificates**: Automatic generation with RSA 4096-bit keys
 - **Subject Alternative Names**: Support for localhost and 127.0.0.1
 - **Graceful Fallback**: Falls back to HTTP when OpenSSL unavailable
 - **90-day Certificates**: Industry-standard validity period
@@ -77,8 +104,11 @@ swift run SwiftServe
 # HTTP server on port 8080
 swift run SwiftServe
 
-# HTTPS server with automatic certificate generation
-swift run SwiftServe --enable-tls
+# HTTPS server with self-signed certificate
+swift run SwiftServe --https
+
+# HTTPS server with real Let's Encrypt certificate
+swift run SwiftServe --letsencrypt --domain example.com --email admin@example.com
 
 # Custom port and document root
 swift run SwiftServe --port 3000 --root ./public
@@ -87,16 +117,54 @@ swift run SwiftServe --port 3000 --root ./public
 swift run SwiftServe --debug
 ```
 
-## 🔒 TLS/SSL Certificate Generation
+## 🔒 TLS/SSL Certificate Management
 
-SwiftServe automatically generates Let's Encrypt-style certificates for HTTPS:
+SwiftServe supports both self-signed certificates for development and Let's Encrypt certificates for production:
 
+### Self-Signed Certificates (Development)
 ```bash
-# Enable HTTPS (auto-generates certificates)
-swift run SwiftServe --enable-tls
+# Enable HTTPS with automatic self-signed certificate generation
+swift run SwiftServe --https
 ```
 
-**Certificate Details:**
+### Real Let's Encrypt Certificates (Production)
+```bash
+# Install certbot first
+# macOS:
+brew install certbot
+
+# Ubuntu/Debian:
+sudo apt-get install certbot
+
+# CentOS/RHEL:
+sudo yum install certbot
+
+# Or via pip:
+pip install certbot
+
+# Get real Let's Encrypt certificate
+swift run SwiftServe --letsencrypt --domain yourdomain.com --email admin@yourdomain.com
+```
+
+**Requirements for Let's Encrypt:**
+- Domain must point to your server
+- Server must be accessible on port 80 for HTTP-01 challenge
+- Certbot must be installed (`pip install certbot`)
+
+**Certificate Renewal:**
+Let's Encrypt certificates expire every 90 days. Certbot handles automatic renewal:
+```bash
+# Setup automatic renewal (recommended)
+sudo crontab -e
+# Add this line to run renewal check twice daily:
+# 0 12,0 * * * certbot renew --quiet
+
+# Manual renewal check
+certbot renew --dry-run  # Test renewal
+certbot renew            # Actually renew if needed
+```
+
+**Self-Signed Certificate Details:**
 - **Algorithm**: RSA 4096-bit keys
 - **Validity**: 90 days (renewable)
 - **Subject**: localhost with example@example.com email
@@ -104,8 +172,9 @@ swift run SwiftServe --enable-tls
 - **Format**: Let's Encrypt-compatible
 
 **Generated Files:**
-- `localhost.crt` - TLS certificate
-- `localhost.key` - RSA private key
+- `localhost.crt` - TLS certificate (self-signed)
+- `localhost.key` - RSA private key (self-signed)
+- `/etc/letsencrypt/live/domain/` - Let's Encrypt certificates
 
 ## 🧪 Testing
 
@@ -140,7 +209,10 @@ swift test -v
 |--------|-------------|---------|
 | `--port` | Server port | 8080 (HTTP), 8443 (HTTPS) |
 | `--root` | Document root directory | `./serve` |
-| `--enable-tls` | Enable HTTPS with auto certificates | HTTP only |
+| `--https` | Enable HTTPS with self-signed certificate | HTTP only |
+| `--letsencrypt` | Enable HTTPS with real Let's Encrypt certificate | HTTP only |
+| `--domain` | Domain name for Let's Encrypt certificate | None |
+| `--email` | Email address for Let's Encrypt registration | example@example.com |
 | `--debug` | Enable detailed logging | Disabled |
 | `--help` | Show help message | - |
 
@@ -284,6 +356,28 @@ brew install openssl
 sudo apt-get install openssl
 ```
 
+**Let's Encrypt Certificate Issues**
+```bash
+# Check if certbot is installed
+which certbot
+
+# Install certbot (pip)
+pip install certbot
+
+# Install certbot (Ubuntu)
+sudo apt-get install certbot
+
+# Install certbot (macOS)
+brew install certbot
+
+# Ensure domain points to your server
+nslookup yourdomain.com
+
+# Check port 80 is accessible
+sudo ufw allow 80/tcp  # Ubuntu
+sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT  # General Linux
+```
+
 **Permission Denied on Port 80/443**
 ```bash
 # Use unprivileged ports for development
@@ -340,5 +434,5 @@ Project created by [LibreTech Collective](https://sites.gatech.edu/gtltc/) at th
 - [ ] WebSocket support
 - [ ] HTTP/2 implementation
 - [ ] Performance benchmarking
-- [ ] Real Let's Encrypt integration
+- [x] Real Let's Encrypt integration
 - [ ] Plugin system architecture
